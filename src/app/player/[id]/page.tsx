@@ -10,6 +10,7 @@ import { ActivityHeatmap } from "@/components/charts/ActivityHeatmap";
 import { ProgressLineChart } from "@/components/charts/ProgressLineChart";
 import { BadgeDisplay } from "@/components/BadgeDisplay";
 import { ProofReactions } from "@/components/ProofReactions";
+import { ProofComments } from "@/components/ProofComments";
 import { Flame, User } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -195,6 +196,7 @@ export default function PublicPlayerPage({ params }: { params: Promise<{ id: str
                         {new Date(item.created_at).toLocaleDateString("pl-PL")}
                       </p>
                       <ProofReactions activityId={item.id} />
+                      <ProofComments activityId={item.id} />
                     </div>
                   </div>
                 ))}

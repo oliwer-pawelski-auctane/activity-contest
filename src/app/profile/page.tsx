@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { ProofReactions } from "@/components/ProofReactions";
+import { ProofComments } from "@/components/ProofComments";
 import { ActivityHeatmap } from "@/components/charts/ActivityHeatmap";
 import { ProgressLineChart } from "@/components/charts/ProgressLineChart";
 import { toast } from "sonner";
@@ -574,6 +575,7 @@ export default function ProfilePage() {
                     </a>
                     <div className="p-1.5">
                       <ProofReactions activityId={item.id} />
+                      <ProofComments activityId={item.id} />
                     </div>
                   </div>
                 ))}

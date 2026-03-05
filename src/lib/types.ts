@@ -97,3 +97,12 @@ export interface TeamChange {
   new_team_id: number | null;
   changed_at: string;
 }
+
+export interface ProofComment {
+  id: number;
+  activity_id: number;
+  person_id: string;
+  text: string;
+  created_at: string;
+  people?: { name: string };
+}

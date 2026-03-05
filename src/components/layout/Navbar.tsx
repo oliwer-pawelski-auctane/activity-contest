@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
+  Newspaper,
   Trophy,
   Users,
   User,
@@ -31,6 +32,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
+  { href: "/feed", label: "Feed", icon: <Newspaper className="h-4 w-4" /> },
   { href: "/leaderboard", label: "Ranking", icon: <Trophy className="h-4 w-4" /> },
   { href: "/teams", label: "Zespoły", icon: <Users className="h-4 w-4" /> },
   { href: "/profile", label: "Profil", icon: <User className="h-4 w-4" /> },

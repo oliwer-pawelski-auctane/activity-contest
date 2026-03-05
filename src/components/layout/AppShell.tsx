@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { Navbar } from "./Navbar";
 import { Breadcrumbs } from "./Breadcrumbs";
+import { NotificationListener } from "@/components/NotificationListener";
 import { useAuthStore } from "@/stores/authStore";
 import { useAppStore } from "@/stores/appStore";
 import { Spinner } from "@/components/ui/spinner";
@@ -34,6 +35,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background">
       <Navbar />
       <Breadcrumbs />
+      <NotificationListener />
       <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
     </div>
   );

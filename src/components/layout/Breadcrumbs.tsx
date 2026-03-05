@@ -7,6 +7,7 @@ import { useAppStore } from "@/stores/appStore";
 
 const ROUTE_LABELS: Record<string, string> = {
   "": "Dashboard",
+  feed: "Feed",
   leaderboard: "Ranking",
   teams: "Zespoły",
   profile: "Profil",
