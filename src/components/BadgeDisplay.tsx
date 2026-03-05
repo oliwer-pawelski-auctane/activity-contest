@@ -42,13 +42,13 @@ export function BadgeDisplay({ userBadges, allBadges, showUnearned = false }: Pr
         {displayBadges.map((item) => (
           <Tooltip key={item.badge.id}>
             <TooltipTrigger asChild>
-              <div className={`flex items-center justify-center h-9 w-9 rounded-full border-2 transition-all ${
+              <button type="button" className={`flex items-center justify-center h-9 w-9 rounded-full border-2 transition-all cursor-default ${
                 item.earned
                   ? "bg-amber-100 border-amber-400 text-amber-700 dark:bg-amber-900 dark:border-amber-600 dark:text-amber-300"
                   : "bg-muted border-muted-foreground/20 text-muted-foreground/40"
               }`}>
                 {ICON_MAP[item.badge.icon] ?? <Award className="h-4 w-4" />}
-              </div>
+              </button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs max-w-48">
               <p className="font-semibold">{item.badge.name}</p>

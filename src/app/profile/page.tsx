@@ -133,8 +133,16 @@ export default function ProfilePage() {
   const handleTeamChange = async () => {
     const teamId = selectedTeam ? parseInt(selectedTeam) : null;
     const result = await updateTeam(teamId);
-    if (result.success) toast.success(result.message);
-    else toast.error(result.message);
+    if (result.success) {
+      toast.success(result.message);
+      const newBadges = await checkAndAwardBadges(session.user.id);
+      if (newBadges.length > 0) {
+        newBadges.forEach((name) => toast.success(`Nowa odznaka: ${name}!`));
+        await fetchBadges();
+      }
+    } else {
+      toast.error(result.message);
+    }
   };
 
   const handleAddActivity = async (sign: 1 | -1) => {
@@ -333,7 +341,7 @@ export default function ProfilePage() {
                 </div>
               )}
             </div>
-            {userBadges.length > 0 && (
+            {allBadges.length > 0 && (
               <div className="mt-3">
                 <BadgeDisplay userBadges={userBadges} allBadges={allBadges} showUnearned />
               </div>

@@ -134,7 +134,7 @@ export default function PublicPlayerPage({ params }: { params: Promise<{ id: str
               </div>
             </div>
           </CardHeader>
-          {userBadges.length > 0 && (
+          {allBadges.length > 0 && (
             <CardContent>
               <BadgeDisplay userBadges={userBadges} allBadges={allBadges} showUnearned />
             </CardContent>
