@@ -41,7 +41,16 @@ INSERT INTO badges (key, name, description, icon) VALUES
     ('proof_5', 'Dokumentalista', 'Dodaj 5 dowodów aktywności', 'camera'),
     ('proof_20', 'Paparazzo', 'Dodaj 20 dowodów aktywności', 'image'),
     ('variety_3', 'Wszechstronny', 'Wypróbuj 3 różne typy aktywności', 'shuffle'),
-    ('team_player', 'Gracz zespołowy', 'Dołącz do zespołu', 'users')
+    ('team_player', 'Gracz zespołowy', 'Dołącz do zespołu', 'users'),
+    ('early_bird', 'Wczesny ptaszek', 'Dodaj aktywność przed 6:00', 'sunrise'),
+    ('night_owl', 'Nocny marek', 'Dodaj aktywność po 23:00', 'moon'),
+    ('variety_all', 'Renesansowy', 'Wypróbuj wszystkie typy aktywności', 'palette'),
+    ('comeback', 'Comeback', 'Wróć po 21+ dniach przerwy', 'rotate-ccw'),
+    ('marathon', 'Maratończyk', 'Pojedyncza aktywność warta 10+ pkt', 'rocket'),
+    ('star_proof', 'Gwiazda', 'Zdobądź 10 reakcji na swoje dowody', 'sparkles'),
+    ('motivator', 'Motywator', 'Daj 10 reakcji na dowody innych', 'heart-handshake'),
+    ('collector', 'Kolekcjoner', 'Zdobądź 5 różnych odznak', 'album'),
+    ('proof_50', 'Kronikarz', 'Dodaj 50 dowodów aktywności', 'film')
 ON CONFLICT (key) DO NOTHING;
 
 -- ============================================================

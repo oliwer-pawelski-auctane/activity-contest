@@ -2,7 +2,10 @@
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Badge, UserBadge } from "@/lib/types";
-import { Award, Flame, Zap, Shield, Crown, Star, Trophy, Medal, Gem, Camera, Image, Shuffle, Users } from "lucide-react";
+import {
+  Award, Flame, Zap, Shield, Crown, Star, Trophy, Medal, Gem, Camera, Image, Shuffle, Users,
+  Sunrise, Moon, Palette, RotateCcw, Rocket, Sparkles, HeartHandshake, Album, Film,
+} from "lucide-react";
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   footprints: <Award className="h-4 w-4" />,
@@ -19,6 +22,15 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   shuffle: <Shuffle className="h-4 w-4" />,
   users: <Users className="h-4 w-4" />,
   award: <Award className="h-4 w-4" />,
+  sunrise: <Sunrise className="h-4 w-4" />,
+  moon: <Moon className="h-4 w-4" />,
+  palette: <Palette className="h-4 w-4" />,
+  "rotate-ccw": <RotateCcw className="h-4 w-4" />,
+  rocket: <Rocket className="h-4 w-4" />,
+  sparkles: <Sparkles className="h-4 w-4" />,
+  "heart-handshake": <HeartHandshake className="h-4 w-4" />,
+  album: <Album className="h-4 w-4" />,
+  film: <Film className="h-4 w-4" />,
 };
 
 interface Props {
