@@ -1,222 +1,205 @@
-"use client"
-import {Button} from "@/components/ui/button";
-import {Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} from "@/components/ui/card";
-import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from "@/components/ui/table";
-import {supabase} from "@/lib/supabase";
-import React, {useEffect, useState} from "react";
-import {ChartPieSimple} from "@/components/ui/PieChart";
-import {useSessionAndStats} from "@/hooks/sessionAndStats";
-import {useAuth} from "@/hooks/useAuth";
-import {usePlayerProfile} from "@/hooks/usePlayerProfile";
-import {useAdmin} from "@/hooks/useAdmin";
-import {useAuthHandler} from "@/hooks/useAuthHandler";
-import {AuthForms} from "@/components/AuthForms";
-import {ProfileSection} from "@/components/ProfileSection";
-import {TEAMS} from "@/lib/teamConfig";
-import {Trophy} from "lucide-react";
+"use client";
 
-interface LeaderboardEntry {
-    name: string;
-    distance: number;
-    team: number | null;
-}
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { useAppStore } from "@/stores/appStore";
+import type { TeamStats, LeaderboardEntry } from "@/lib/types";
+import { TeamBarChart } from "@/components/charts/TeamBarChart";
+import { TeamPieChart } from "@/components/charts/TeamPieChart";
+import { ProgressLineChart } from "@/components/charts/ProgressLineChart";
+import { WeeklyTrendChart } from "@/components/charts/WeeklyTrendChart";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageTransition } from "@/components/layout/PageTransition";
+import { Trophy, Users, TrendingUp, AlertTriangle } from "lucide-react";
+import Link from "next/link";
 
-export default function Home() {
+export default function DashboardPage() {
+  const { teams, getConfigValue } = useAppStore();
+  const [teamStats, setTeamStats] = useState<TeamStats[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [allActivities, setAllActivities] = useState<{ created_at: string; points: number }[]>([]);
 
-    const {
-        session,
-        setSession,
-        stats,
-        setStats
-    } = useSessionAndStats();
+  useEffect(() => {
+    const load = async () => {
+      const [statsRes, peopleRes, activitiesRes] = await Promise.all([
+        supabase.from("mv_team_stats").select("*"),
+        supabase.from("mv_people_stats").select("*").order("total_points", { ascending: false }).limit(15),
+        supabase.from("activities").select("created_at, points").order("created_at", { ascending: true }),
+      ]);
 
-    const auth = useAuth();
-    const profile = usePlayerProfile(session?.user.id);
-    const isAdmin = useAdmin(session?.user.id);
+      if (statsRes.data) setTeamStats(statsRes.data as TeamStats[]);
 
-    const [team1, setTeam1] = useState(0);
-    const [team2, setTeam2] = useState(0);
-    const [team1val, setTeam1val] = useState(0);
-    const [team2val, setTeam2val] = useState(0);
-    const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+      if (peopleRes.data) {
+        const inactiveDays = parseInt(getConfigValue("inactive_days_threshold", "7"));
+        const inactivePercentile = parseInt(getConfigValue("inactive_percentile_threshold", "25"));
+        const now = Date.now();
 
-    useAuthHandler(setSession, profile.updatePerson, () => { void profile.gallery(); void profile.fetchHistory(); });
+        const people = peopleRes.data as LeaderboardEntry[];
+        const sorted = [...people].sort((a, b) => b.total_points - a.total_points);
+        const cutoffIndex = Math.floor(sorted.length * (inactivePercentile / 100));
+        const cutoffPoints = sorted[sorted.length - 1 - cutoffIndex]?.total_points ?? 0;
 
-    useEffect(() => {
-        const getData = async () => {
-            const {data: data1, error: error1} = await supabase
-                .from('TeamsDistance')
-                .select('total_distance')
-                .eq('team', TEAMS.team1.teamId)
-                .single();
+        const entries: LeaderboardEntry[] = people.map((p) => {
+          const daysSinceActivity = p.last_activity
+            ? Math.floor((now - new Date(p.last_activity).getTime()) / 86400000)
+            : 999;
+          const isInactive = daysSinceActivity >= inactiveDays || p.total_points <= cutoffPoints;
+          return { ...p, is_inactive: isInactive };
+        });
 
-            const {data: data2, error: error2} = await supabase
-                .from('TeamsDistance')
-                .select('total_distance')
-                .eq('team', TEAMS.team2.teamId)
-                .single();
+        setLeaderboard(entries);
+      }
 
-            if (data1 && data2) {
-                setTeam1val(data1.total_distance);
-                setTeam2val(data2.total_distance);
+      if (activitiesRes.data) {
+        setAllActivities(activitiesRes.data as { created_at: string; points: number }[]);
+      }
+    };
 
-                const sum = data1.total_distance + data2.total_distance;
-                if (sum > 0) {
-                    const res1 = (data1.total_distance / sum) * 100;
-                    const res2 = (data2.total_distance / sum) * 100;
-                    setTeam1(parseFloat(res1.toFixed(2)));
-                    setTeam2(parseFloat(res2.toFixed(2)));
-                } else {
-                    setTeam1(50);
-                    setTeam2(50);
-                }
-            }
+    void load();
 
-            if(error1) console.error("Error Team1:", error1.message, error1.hint);
-            if(error2) console.error("Error Team2:", error2.message, error2.hint);
+    // Realtime
+    const channel = supabase
+      .channel("dashboard")
+      .on("postgres_changes", { event: "*", schema: "public", table: "activities" }, () => void load())
+      .subscribe();
 
-            // Leaderboard (#17)
-            const { data: lbData } = await supabase
-                .from('PeopleDistances')
-                .select('Name, total_distance, team')
-                .not('team', 'is', null)
-                .order('total_distance', { ascending: false })
-                .limit(10);
+    return () => { void supabase.removeChannel(channel); };
+  }, [getConfigValue]);
 
-            if (lbData) {
-                setLeaderboard(lbData.map(d => ({
-                    name: d.Name,
-                    distance: d.total_distance,
-                    team: d.team,
-                })));
-            }
-        };
-        void getData();
-    }, []);
+  // Daily progress data
+  const dailyMap = new Map<string, number>();
+  allActivities.forEach((a) => {
+    const date = new Date(a.created_at).toISOString().slice(0, 10);
+    dailyMap.set(date, (dailyMap.get(date) ?? 0) + a.points);
+  });
+  let cumulative = 0;
+  const dailyData = Array.from(dailyMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, points]) => {
+      cumulative += points;
+      return { date: date.slice(5), points: Number(cumulative.toFixed(1)) };
+    });
 
-    return (
-        <main className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
-            <div className="w-full max-w-4xl">
-                <Card>
-                    <CardHeader>
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                            <div className="mb-4 sm:mb-0">
-                                <CardTitle>Activity Contest</CardTitle>
-                                <CardDescription>
-                                    Live results of the team activity contest.
-                                </CardDescription>
-                            </div>
-                            <div className="flex gap-2">
-                                {stats ?
-                                    (<Button className="w-fit border hover:bg-gray-700" onClick={() => setStats(false)}>
-                                        {!session? ("Sign up / Log in") : ("Profile")}
-                                    </Button>)
-                                    :
-                                    (<Button className="w-fit border hover:bg-gray-700" onClick={() => setStats(true)}>Team activity</Button>)
-                                }
-                            </div>
-                        </div>
-                    </CardHeader>
-                    {!stats ? (<CardContent className="grid gap-6">
-                            {!session ? (
-                                <AuthForms
-                                    usernameSignUp={auth.usernameSignUp} setUsernameSignUp={auth.setUsernameSignUp}
-                                    passwordSignUp={auth.passwordSignUp} setPasswordSignUp={auth.setPasswordSignUp}
-                                    usernameLogIn={auth.usernameLogIn} setUsernameLogIn={auth.setUsernameLogIn}
-                                    passwordLogIn={auth.passwordLogIn} setPasswordLogIn={auth.setPasswordLogIn}
-                                    handleRegister={auth.handleRegister} handleLogin={auth.handleLogin}
-                                    isAuthLoading={auth.isAuthLoading}
-                                />
-                            ) : (
-                                <ProfileSection
-                                    session={session}
-                                    personResult={profile.personResult}
-                                    teamValue={profile.teamValue} setTeamValue={profile.setTeamValue}
-                                    updateTeam={profile.updateTeam}
-                                    multiplier={profile.multiplier} setMultiplier={profile.setMultiplier}
-                                    inputValues={profile.inputValues} InputChange={profile.InputChange}
-                                    UpdateDistance={profile.UpdateDistance} SubtractDistance={profile.SubtractDistance}
-                                    uploadDistanceProof={profile.uploadDistanceProof}
-                                    uploadProofForEntry={profile.uploadProofForEntry}
-                                    useUploading={profile.useUploading}
-                                    isSubmitting={profile.isSubmitting}
-                                    proof={profile.proof} deleteProof={profile.deleteProof}
-                                    deleteDistanceEntry={profile.deleteDistanceEntry}
-                                    handleLogout={auth.handleLogout}
-                                    history={profile.history}
-                                    streak={profile.fetchStreak()}
-                                    isAdmin={isAdmin}
-                                />
-                            )}
-                        </CardContent>) :
-                        (<div>
-                            <CardContent>
-                                <ChartPieSimple
-                                    team1percent={team1}
-                                    team2percent={team2}
-                                    team1value={team1val}
-                                    team2value={team2val}
-                                />
-                            </CardContent>
+  const totalPoints = teamStats.reduce((s, t) => s + t.total_points, 0);
+  const totalMembers = teamStats.reduce((s, t) => s + t.total_members, 0);
 
-                            {/* Leaderboard (#17) */}
-                            {leaderboard.length > 0 && (
-                                <CardContent>
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <Trophy className="h-5 w-5 text-amber-500" />
-                                        <h3 className="font-semibold">Top Players</h3>
-                                    </div>
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead className="w-10">#</TableHead>
-                                                <TableHead>Player</TableHead>
-                                                <TableHead className="text-right">Points</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {leaderboard.map((entry, i) => (
-                                                <TableRow key={i}>
-                                                    <TableCell className="font-mono text-muted-foreground">{i + 1}</TableCell>
-                                                    <TableCell className="font-medium">
-                                                        <div className="flex items-center gap-2">
-                                                            <span>{entry.name}</span>
-                                                            <span className={`inline-block h-2 w-2 rounded-full ${entry.team === TEAMS.team1.teamId ? "bg-blue-500" : "bg-red-500"}`} />
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-mono">{entry.distance.toFixed(2)}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </CardContent>
-                            )}
+  return (
+    <PageTransition>
+      <div className="grid gap-6">
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-primary/10 p-2.5">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold font-mono">{totalPoints.toFixed(0)}</p>
+                  <p className="text-xs text-muted-foreground">Łączne punkty</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-blue-500/10 p-2.5">
+                  <Users className="h-5 w-5 text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold font-mono">{totalMembers}</p>
+                  <p className="text-xs text-muted-foreground">Uczestników</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-emerald-500/10 p-2.5">
+                  <Trophy className="h-5 w-5 text-emerald-500" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold font-mono">{teams.length}</p>
+                  <p className="text-xs text-muted-foreground">Zespołów</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-amber-500/10 p-2.5">
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold font-mono">
+                    {leaderboard.filter((e) => e.is_inactive).length}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Nieaktywnych</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-                            <CardFooter className="flex-col gap-4">
-                                <p className="text-sm text-muted-foreground">
-                                    View team details:
-                                </p>
-                                <nav className="flex w-full justify-center gap-4">
-                                    <a href="/Team1">
-                                        <Button className="bg-blue-600 text-white hover:bg-blue-700">
-                                            Blue Team
-                                        </Button>
-                                    </a>
-                                    {isAdmin && (
-                                        <a href="/Randomizer">
-                                            <Button variant="outline" className={"border-amber-500 text-amber-500 hover:bg-amber-500 hover:text-white"}>Randomizer</Button>
-                                        </a>
-                                    )}
-                                    <a href="/Team2">
-                                        <Button className="bg-red-600 text-white hover:bg-red-700">
-                                            Red Team
-                                        </Button>
-                                    </a>
-                                </nav>
-                            </CardFooter>
-                        </div>)}
-                </Card>
+        {/* Charts row 1 */}
+        <div className="grid md:grid-cols-2 gap-6">
+          <TeamBarChart data={teamStats} />
+          <TeamPieChart data={teamStats} />
+        </div>
+
+        {/* Charts row 2 */}
+        <div className="grid md:grid-cols-2 gap-6">
+          <ProgressLineChart data={dailyData} title="Łączny postęp" />
+          <WeeklyTrendChart activities={allActivities} />
+        </div>
+
+        {/* Leaderboard preview */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Trophy className="h-5 w-5 text-amber-500" />
+              Top gracze
+            </CardTitle>
+            <Link href="/leaderboard" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Zobacz pełny ranking &rarr;
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {leaderboard.slice(0, 5).map((entry, i) => {
+                const team = teams.find((t) => t.id === entry.team_id);
+                return (
+                  <div key={entry.person_id} className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg font-bold text-muted-foreground w-6 text-center">
+                        {i + 1}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{entry.name}</span>
+                        {entry.is_inactive && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                            nieaktywny
+                          </span>
+                        )}
+                      </div>
+                      {team && (
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: team.color }}
+                        />
+                      )}
+                    </div>
+                    <span className="font-mono font-medium">{entry.total_points.toFixed(1)} pkt</span>
+                  </div>
+                );
+              })}
             </div>
-        </main>
-    );
+          </CardContent>
+        </Card>
+      </div>
+    </PageTransition>
+  );
 }
