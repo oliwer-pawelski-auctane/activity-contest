@@ -65,3 +65,35 @@ export interface LeaderboardEntry {
   last_activity: string | null;
   is_inactive: boolean;
 }
+
+export interface Badge {
+  id: number;
+  key: string;
+  name: string;
+  description: string;
+  icon: string;
+}
+
+export interface UserBadge {
+  id: number;
+  person_id: string;
+  badge_id: number;
+  earned_at: string;
+  badges?: Badge;
+}
+
+export interface ProofReaction {
+  id: number;
+  activity_id: number;
+  person_id: string;
+  emoji: string;
+  created_at: string;
+}
+
+export interface TeamChange {
+  id: number;
+  person_id: string;
+  old_team_id: number | null;
+  new_team_id: number | null;
+  changed_at: string;
+}

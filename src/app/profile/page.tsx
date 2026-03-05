@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import { useAppStore } from "@/stores/appStore";
 import { supabase } from "@/lib/supabase";
-import type { Activity } from "@/lib/types";
+import type { Activity, Badge, UserBadge } from "@/lib/types";
+import { BadgeDisplay } from "@/components/BadgeDisplay";
+import { checkAndAwardBadges } from "@/lib/badgeChecker";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +18,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { PageTransition } from "@/components/layout/PageTransition";
+import { ProofReactions } from "@/components/ProofReactions";
 import { ActivityHeatmap } from "@/components/charts/ActivityHeatmap";
 import { ProgressLineChart } from "@/components/charts/ProgressLineChart";
 import { toast } from "sonner";
@@ -38,6 +41,8 @@ export default function ProfilePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [userBadges, setUserBadges] = useState<(UserBadge & { badges: Badge })[]>([]);
+  const [allBadges, setAllBadges] = useState<Badge[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const historyFileRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
@@ -51,13 +56,24 @@ export default function ProfilePage() {
     setActivities((data as Activity[]) ?? []);
   }, [session]);
 
+  const fetchBadges = useCallback(async () => {
+    if (!session) return;
+    const [earned, all] = await Promise.all([
+      supabase.from("user_badges").select("*, badges(*)").eq("person_id", session.user.id),
+      supabase.from("badges").select("*"),
+    ]);
+    setUserBadges((earned.data ?? []) as (UserBadge & { badges: Badge })[]);
+    setAllBadges((all.data as Badge[]) ?? []);
+  }, [session]);
+
   useEffect(() => {
     if (!session) {
       router.replace("/auth");
       return;
     }
     void fetchActivities();
-  }, [session, router, fetchActivities]);
+    void fetchBadges();
+  }, [session, router, fetchActivities, fetchBadges]);
 
   useEffect(() => {
     if (person) {
@@ -156,6 +172,11 @@ export default function ProfilePage() {
     toast.success(`${sign > 0 ? "+" : ""}${points.toFixed(1)} pkt`);
     setValueInput("");
     await fetchActivities();
+    const newBadges = await checkAndAwardBadges(session.user.id);
+    if (newBadges.length > 0) {
+      newBadges.forEach((name) => toast.success(`Nowa odznaka: ${name}!`));
+      await fetchBadges();
+    }
   };
 
   const uploadProof = async (activityId: number, file: File) => {
@@ -312,6 +333,11 @@ export default function ProfilePage() {
                 </div>
               )}
             </div>
+            {userBadges.length > 0 && (
+              <div className="mt-3">
+                <BadgeDisplay userBadges={userBadges} allBadges={allBadges} showUnearned />
+              </div>
+            )}
           </CardHeader>
           <CardContent className="grid gap-5">
             {/* Team selection */}
@@ -538,6 +564,9 @@ export default function ProfilePage() {
                         {new Date(item.created_at).toLocaleDateString("pl-PL")}
                       </div>
                     </a>
+                    <div className="p-1.5">
+                      <ProofReactions activityId={item.id} />
+                    </div>
                   </div>
                 ))}
               </div>

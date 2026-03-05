@@ -12,12 +12,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { Trophy, Users, TrendingUp, AlertTriangle } from "lucide-react";
 import Link from "next/link";
+import { DateRangeFilter } from "@/components/DateRangeFilter";
 
 export default function DashboardPage() {
   const { teams, getConfigValue } = useAppStore();
   const [teamStats, setTeamStats] = useState<TeamStats[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [allActivities, setAllActivities] = useState<{ created_at: string; points: number }[]>([]);
+  const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>({ from: null, to: null });
 
   useEffect(() => {
     const load = async () => {
@@ -66,9 +68,17 @@ export default function DashboardPage() {
     return () => { void supabase.removeChannel(channel); };
   }, [getConfigValue]);
 
+  // Filter activities by date range
+  const filteredActivities = dateRange.from && dateRange.to
+    ? allActivities.filter((a) => {
+        const d = new Date(a.created_at);
+        return d >= dateRange.from! && d <= dateRange.to!;
+      })
+    : allActivities;
+
   // Daily progress data
   const dailyMap = new Map<string, number>();
-  allActivities.forEach((a) => {
+  filteredActivities.forEach((a) => {
     const date = new Date(a.created_at).toISOString().slice(0, 10);
     dailyMap.set(date, (dailyMap.get(date) ?? 0) + a.points);
   });
@@ -144,6 +154,8 @@ export default function DashboardPage() {
           </Card>
         </div>
 
+        <DateRangeFilter onChange={setDateRange} />
+
         {/* Charts row 1 */}
         <div className="grid md:grid-cols-2 gap-6">
           <TeamBarChart data={teamStats} />
@@ -153,7 +165,7 @@ export default function DashboardPage() {
         {/* Charts row 2 */}
         <div className="grid md:grid-cols-2 gap-6">
           <ProgressLineChart data={dailyData} title="Łączny postęp" />
-          <WeeklyTrendChart activities={allActivities} />
+          <WeeklyTrendChart activities={filteredActivities} />
         </div>
 
         {/* Leaderboard preview */}

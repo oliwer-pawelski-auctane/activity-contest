@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useAppStore } from "@/stores/appStore";
 import type { TeamStats, LeaderboardEntry } from "@/lib/types";
@@ -9,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { Trophy, ArrowUpDown, Medal, AlertTriangle } from "lucide-react";
+import { DateRangeFilter } from "@/components/DateRangeFilter";
 
 type SortField = "rank" | "name" | "points";
 
@@ -19,34 +21,76 @@ export default function LeaderboardPage() {
   const [sortField, setSortField] = useState<SortField>("points");
   const [sortAsc, setSortAsc] = useState(false);
   const [tab, setTab] = useState<"individual" | "teams">("individual");
+  const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>({ from: null, to: null });
 
   useEffect(() => {
     const load = async () => {
-      const [peopleRes, teamsRes] = await Promise.all([
-        supabase.from("mv_people_stats").select("*").order("total_points", { ascending: false }),
-        supabase.from("mv_team_stats").select("*").order("total_points", { ascending: false }),
-      ]);
-
+      const teamsRes = await supabase.from("mv_team_stats").select("*").order("total_points", { ascending: false });
       if (teamsRes.data) setTeamStats(teamsRes.data as TeamStats[]);
 
-      if (peopleRes.data) {
-        const inactiveDays = parseInt(getConfigValue("inactive_days_threshold", "7"));
-        const inactivePercentile = parseInt(getConfigValue("inactive_percentile_threshold", "25"));
-        const now = Date.now();
+      if (dateRange.from && dateRange.to) {
+        // Date-filtered: fetch activities directly and compute totals client-side
+        const activitiesRes = await supabase
+          .from("activities")
+          .select("person_id, team_id, points, created_at")
+          .gte("created_at", dateRange.from.toISOString())
+          .lte("created_at", dateRange.to.toISOString());
 
-        const all = peopleRes.data as LeaderboardEntry[];
-        const sorted = [...all].sort((a, b) => b.total_points - a.total_points);
-        const cutoffIndex = Math.floor(sorted.length * (inactivePercentile / 100));
-        const cutoffPoints = sorted[sorted.length - 1 - cutoffIndex]?.total_points ?? 0;
+        if (activitiesRes.data) {
+          const map = new Map<string, { person_id: string; name: string; team_id: number | null; total_points: number; last_activity: string }>();
+          for (const a of activitiesRes.data as { person_id: string; team_id: number | null; points: number; created_at: string }[]) {
+            const existing = map.get(a.person_id);
+            if (existing) {
+              existing.total_points += a.points;
+              if (a.created_at > existing.last_activity) existing.last_activity = a.created_at;
+            } else {
+              map.set(a.person_id, {
+                person_id: a.person_id,
+                name: a.person_id,
+                team_id: a.team_id,
+                total_points: a.points,
+                last_activity: a.created_at,
+              });
+            }
+          }
+          // Fetch names for matched people
+          const ids = Array.from(map.keys());
+          if (ids.length > 0) {
+            const { data: people } = await supabase.from("people").select("id, name").in("id", ids);
+            if (people) {
+              for (const p of people as { id: string; name: string }[]) {
+                const entry = map.get(p.id);
+                if (entry) entry.name = p.name;
+              }
+            }
+          }
+          const all = Array.from(map.values())
+            .sort((a, b) => b.total_points - a.total_points);
+          setPeople(all.map((p) => ({ ...p, is_inactive: false, last_activity: p.last_activity })));
+        }
+      } else {
+        // No date filter: use materialized view
+        const peopleRes = await supabase.from("mv_people_stats").select("*").order("total_points", { ascending: false });
 
-        setPeople(
-          all.map((p) => {
-            const daysSince = p.last_activity
-              ? Math.floor((now - new Date(p.last_activity).getTime()) / 86400000)
-              : 999;
-            return { ...p, is_inactive: daysSince >= inactiveDays || p.total_points <= cutoffPoints };
-          })
-        );
+        if (peopleRes.data) {
+          const inactiveDays = parseInt(getConfigValue("inactive_days_threshold", "7"));
+          const inactivePercentile = parseInt(getConfigValue("inactive_percentile_threshold", "25"));
+          const now = Date.now();
+
+          const all = peopleRes.data as LeaderboardEntry[];
+          const sorted = [...all].sort((a, b) => b.total_points - a.total_points);
+          const cutoffIndex = Math.floor(sorted.length * (inactivePercentile / 100));
+          const cutoffPoints = sorted[sorted.length - 1 - cutoffIndex]?.total_points ?? 0;
+
+          setPeople(
+            all.map((p) => {
+              const daysSince = p.last_activity
+                ? Math.floor((now - new Date(p.last_activity).getTime()) / 86400000)
+                : 999;
+              return { ...p, is_inactive: daysSince >= inactiveDays || p.total_points <= cutoffPoints };
+            })
+          );
+        }
       }
     };
 
@@ -58,7 +102,7 @@ export default function LeaderboardPage() {
       .subscribe();
 
     return () => { void supabase.removeChannel(channel); };
-  }, [getConfigValue]);
+  }, [getConfigValue, dateRange]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) setSortAsc(!sortAsc);
@@ -104,6 +148,8 @@ export default function LeaderboardPage() {
           </div>
         </div>
 
+        <DateRangeFilter onChange={setDateRange} />
+
         {tab === "individual" ? (
           <Card>
             <CardContent className="pt-6">
@@ -138,7 +184,9 @@ export default function LeaderboardPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <span className="font-medium">{entry.name}</span>
+                            <Link href={`/player/${entry.person_id}`} className="font-medium hover:underline">
+                              {entry.name}
+                            </Link>
                             {entry.is_inactive && (
                               <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
                             )}

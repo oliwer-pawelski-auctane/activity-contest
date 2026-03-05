@@ -15,6 +15,8 @@ const ROUTE_LABELS: Record<string, string> = {
   activities: "Aktywności",
   config: "Konfiguracja",
   randomizer: "Losowanie",
+  history: "Historia zmian",
+  player: "Gracz",
 };
 
 export function Breadcrumbs() {
@@ -29,6 +31,11 @@ export function Breadcrumbs() {
     const href = "/" + segments.slice(0, index + 1).join("/");
 
     let label = ROUTE_LABELS[segment];
+
+    // Dynamic player profile
+    if (!label && segments[index - 1] === "player") {
+      label = "Profil gracza";
+    }
 
     // Dynamic team name
     if (!label && segments[index - 1] === "teams") {

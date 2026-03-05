@@ -6,13 +6,14 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageTransition } from "@/components/layout/PageTransition";
-import { Shield, Users, Activity, Settings, Shuffle } from "lucide-react";
+import { Shield, Users, Activity, Settings, Shuffle, History } from "lucide-react";
 
 const ADMIN_PAGES = [
   { href: "/admin/teams", title: "Zespoły", desc: "Tworzenie, edycja i usuwanie zespołów.", icon: <Users className="h-6 w-6" /> },
   { href: "/admin/activities", title: "Typy aktywności", desc: "Zarządzanie typami aktywności i mnożnikami.", icon: <Activity className="h-6 w-6" /> },
   { href: "/admin/config", title: "Konfiguracja", desc: "Progi nieaktywności i inne ustawienia.", icon: <Settings className="h-6 w-6" /> },
   { href: "/admin/randomizer", title: "Losowanie zespołów", desc: "Losowe przydzielanie graczy do zespołów.", icon: <Shuffle className="h-6 w-6" /> },
+  { href: "/admin/history", title: "Historia zmian", desc: "Log zmian zespołów użytkowników.", icon: <History className="h-6 w-6" /> },
 ];
 
 export default function AdminPage() {

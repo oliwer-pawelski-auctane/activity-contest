@@ -10,7 +10,9 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { ProgressLineChart } from "@/components/charts/ProgressLineChart";
-import { ArrowUpDown, AlertTriangle } from "lucide-react";
+import { ArrowUpDown, AlertTriangle, Download } from "lucide-react";
+import { DateRangeFilter } from "@/components/DateRangeFilter";
+import { useAuthStore } from "@/stores/authStore";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 
 type SortField = "name" | "percent" | "score";
@@ -25,12 +27,20 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
   const [dailyData, setDailyData] = useState<{ date: string; points: number }[]>([]);
   const [sortField, setSortField] = useState<SortField>("score");
   const [sortAsc, setSortAsc] = useState(false);
+  const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>({ from: null, to: null });
 
   useEffect(() => {
     const load = async () => {
+      let activitiesQuery = supabase.from("activities").select("created_at, points").eq("team_id", teamId).order("created_at");
+      if (dateRange.from && dateRange.to) {
+        activitiesQuery = activitiesQuery
+          .gte("created_at", dateRange.from.toISOString())
+          .lte("created_at", dateRange.to.toISOString());
+      }
+
       const [membersRes, activitiesRes] = await Promise.all([
         supabase.from("mv_people_stats").select("*").eq("team_id", teamId),
-        supabase.from("activities").select("created_at, points").eq("team_id", teamId).order("created_at"),
+        activitiesQuery,
       ]);
 
       if (membersRes.data) {
@@ -79,7 +89,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
       .subscribe();
 
     return () => { void supabase.removeChannel(channel); };
-  }, [teamId, getConfigValue]);
+  }, [teamId, getConfigValue, dateRange]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) setSortAsc(!sortAsc);
@@ -93,7 +103,32 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
     return mult * (a.total_points - b.total_points);
   });
 
+  const { isAdmin } = useAuthStore();
   const totalPoints = members.reduce((s, m) => s + m.total_points, 0);
+
+  const exportTeamCSV = async () => {
+    const { data } = await supabase
+      .from("activities")
+      .select("*, people!inner(name)")
+      .eq("team_id", teamId)
+      .order("created_at", { ascending: false });
+
+    if (!data || data.length === 0) return;
+
+    const header = "Data,Gracz,Typ,Wartość,Punkty,Dowód\n";
+    const rows = data.map((a: any) => {
+      const date = new Date(a.created_at).toLocaleDateString("pl-PL");
+      return `${date},${a.people?.name ?? "?"},${a.activity_type_id},${a.value},${a.points.toFixed(2)},${a.proof_url ? "Tak" : "Nie"}`;
+    }).join("\n");
+
+    const blob = new Blob([header + rows], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `zespol-${team?.name ?? teamId}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Pie chart data
   const pieData = members
@@ -123,7 +158,14 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
           <span className="text-muted-foreground">—</span>
           <span className="text-muted-foreground">{members.length} członków</span>
           <span className="font-mono font-bold ml-auto text-xl">{totalPoints.toFixed(1)} pkt</span>
+          {isAdmin && (
+            <Button variant="outline" size="sm" onClick={() => void exportTeamCSV()} className="ml-2">
+              <Download className="h-3.5 w-3.5 mr-1" />CSV
+            </Button>
+          )}
         </div>
+
+        <DateRangeFilter onChange={setDateRange} />
 
         {/* Charts */}
         <div className="grid md:grid-cols-2 gap-6">
